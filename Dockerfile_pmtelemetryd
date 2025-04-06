@@ -1,0 +1,61 @@
+ARG VERSION=22.04
+ARG PLATFORM=linux/amd64
+
+FROM --platform=${PLATFORM} ubuntu:${VERSION}
+
+# 環境変数の設定
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+RUN apt-get update && apt-get -y full-upgrade && \
+  apt-get install -y \
+    bash \
+    git \
+    cmake \
+    build-essential \
+    autoconf \
+    libtool \
+    pkg-config \
+    libjsoncpp-dev \
+    librdkafka-dev \
+    libconfig++-dev \
+    libspdlog-dev \
+    libjansson-dev \
+    libpcap-dev \
+    libzmq3-dev \
+    libgrpc-dev \
+    automake \
+    make \
+    bash \
+    libstdc++-12-dev \
+    g++
+
+# mdt-dialout-collector の gRPC dial-out library/Header をインストール
+WORKDIR /tmp
+RUN git clone --depth=1 https://github.com/network-analytics/mdt-dialout-collector.git
+
+WORKDIR /tmp/mdt-dialout-collector
+
+RUN ./install.sh -l -v current
+
+# pmacct(pmtelemetryd)をインストール( gRPC dial-out support enabled )
+WORKDIR /tmp
+RUN git clone --depth=1 https://github.com/pmacct/pmacct.git
+
+WORKDIR /tmp/pmacct
+
+RUN ./autogen.sh
+RUN ./configure --enable-debug --enable-zmq --enable-jansson --enable-grpc-collector
+RUN make -j
+RUN make install
+
+WORKDIR /root
+RUN rm -fr /tmp/mdt-dialout-collector
+RUN rm -fr /tmp/pmacct
+
+
+#ENTRYPOINT ["/bin/bash"]
+#ENTRYPOINT ["/usr/local/sbin/pmtelemetryd"]
+#CMD ["-V"]
+
+# 参考
+# https://github.com/network-analytics/mdt-dialout-collector/blob/main/doc/integration-with-pmtelemetryd.md

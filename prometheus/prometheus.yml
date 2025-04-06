@@ -1,0 +1,8 @@
+global:
+  scrape_interval:     15s # メトリクスを収集する間隔を設定します (デフォルトは 1 分ごと)
+
+scrape_configs:
+  - job_name: telegraf # この収集ジョブの名前を "telegraf" と定義します
+    static_configs:
+      - targets:
+        - telegraf:9091 # ホスト名 "telegraf" の 9091 ポートを監視対象とします

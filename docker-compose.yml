@@ -1,0 +1,77 @@
+services:
+
+  telegraf:
+    image: telegraf:1.34.1         # データ収集エージェントの Telegraf イメージとバージョン
+    hostname: telegraf
+    container_name: telegraf
+    environment:
+      TZ: Asia/Tokyo              # 日本時間にする
+    ports:
+      - 9091:9091                 # Prometheus と連携するためのポートマッピング (ホスト:コンテナ)
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf # Telegraf の設定ファイルをホストからコンテナへマウント
+      - telemetry_data:/path/to/spool # テレメトリーデータを受け渡すための名前付きボリュームをマウント
+    networks:
+      - my_network
+
+  prometheus:
+    image: prom/prometheus:v3.2.1   # 時系列データベースの Prometheus イメージとバージョン
+    hostname: prometheus
+    container_name: prometheus
+    environment:
+      TZ: Asia/Tokyo              # 日本時間にする
+    ports:
+      - 9090:9090                 # Prometheus の Web インターフェースにアクセスするためのポートマッピング
+    volumes:
+      - './prometheus/prometheus.yml:/etc/prometheus/prometheus.yml' # Prometheus の設定ファイルをマウント
+      - 'prometheus-data:/prometheus' # Prometheus のデータを永続化するための名前付きボリュームをマウント
+    depends_on:
+      - telegraf # Prometheus は Telegraf の起動後に起動
+    networks:
+      - my_network
+
+  grafana:
+    image: grafana/grafana:11.6.0   # データ可視化ツールの Grafana イメージとバージョン
+    hostname: grafana
+    container_name: grafana
+    environment:
+      TZ: Asia/Tokyo              # 日本時間にする
+    ports:
+      - 3000:3000
+    volumes:
+      - 'grafana_storage:/var/lib/grafana' # Grafana の設定やデータを永続化するための名前付きボリューム
+    depends_on:
+      - prometheus # Grafana は Prometheus の起動後に起動
+    networks:
+      - my_network
+
+  pmtelemetryd:
+    build:
+      context: ./ # Dockerfile が存在するディレクトリ
+      dockerfile: Dockerfile_pmtelemetryd # 使用する Dockerfile の名前
+    image: pmtelemetryd:latest       # ビルド後の Docker イメージの名前 (タグ latest)
+    hostname: pmtelemetryd
+    container_name: pmtelemetryd
+    environment:
+      TZ: Asia/Tokyo              # 日本時間にする
+    ports:
+      - 20000:20000
+    volumes:
+      - ./pmtelemetryd/pmtelemetryd-grpc-dialout.conf:/root/etc/pmtelemetryd-grpc-dialout.conf # gRPC ダイアルアウト設定ファイル
+      - ./pmtelemetryd/pmtelemetryd.conf:/etc/pmacct/pmtelemetryd.conf         # pmacct の設定ファイル
+      - telemetry_data:/path/to/spool # Telegraf とデータを受け渡すためのボリューム
+    command:
+      /usr/local/sbin/pmtelemetryd -f /etc/pmacct/pmtelemetryd.conf # pmtelemetryd の起動コマンドと設定ファイル指定
+    depends_on:
+      - telegraf # pmtelemetryd は Telegraf の起動後に起動
+    networks:
+      - my_network
+
+networks:
+  my_network: # 複数のコンテナが通信するためのカスタムネットワーク
+
+volumes:
+  telemetry_data: {} # テレメトリーデータ共有用の名前付きボリューム
+  prometheus-data: {} # Prometheus のデータ永続化用ボリューム
+  grafana_storage: {} # Grafana のデータ永続化用ボリューム
+  
